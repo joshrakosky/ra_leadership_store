@@ -5,6 +5,12 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import * as XLSX from 'xlsx'
 import { OrderWithItems } from '@/types'
+import {
+  buildComponentSkuByName,
+  buildKitCountRows,
+  buildProductCountRows,
+  type ReportingProduct
+} from '@/lib/sku-reporting'
 import HelpIcon from '@/components/HelpIcon'
 
 export default function AdminPage() {
@@ -862,71 +868,39 @@ export default function AdminPage() {
     }
   }
 
-  /** Export product usage (distribution summary) to Excel. */
+  /** Export product usage: Kit Counts + Product Counts (canonical SKUs merge historical + new lines). */
   const exportDistributionSummary = async () => {
     setShowExportModal(false)
     setExportLoading('distribution')
     try {
       const { data: productsData, error: productsError } = await supabase
         .from('ra_new_hire_products')
-        .select('id, deco, inventory, inventory_by_size, reorder_point')
+        .select('id, category, customer_item_number, program')
       if (productsError) throw productsError
 
-      type ProductInfo = { deco: string; inventory: number; inventory_by_size?: Record<string, number>; reorder_point: number | null }
-      const productInfoMap = new Map<string, ProductInfo>()
-      productsData?.forEach((p: { id: string; deco?: string; inventory?: number; inventory_by_size?: Record<string, number>; reorder_point?: number | null }) => {
-        productInfoMap.set(p.id, {
-          deco: p.deco || '',
-          inventory: p.inventory ?? 0,
-          inventory_by_size: p.inventory_by_size,
-          reorder_point: p.reorder_point ?? null
-        })
-      })
+      const { data: componentRows, error: componentError } = await supabase
+        .from('ra_new_hire_component_inventory')
+        .select('component_name, sku')
+      if (componentError) throw componentError
 
-      const summaryMap = new Map<string, { quantity: number; deco: string; product_id: string | null; size: string }>()
-      orders.forEach(order => {
-        order.items.forEach(item => {
-          const key = [item.product_name, item.customer_item_number || '', item.color || 'N/A', item.size || 'N/A'].join('|')
-          const productInfo = item.product_id ? productInfoMap.get(item.product_id) : null
-          const deco = productInfo?.deco || ''
-          const size = item.size || 'N/A'
-          const existing = summaryMap.get(key)
-          if (existing) {
-            summaryMap.set(key, { quantity: existing.quantity + 1, deco: existing.deco, product_id: existing.product_id, size: existing.size })
-          } else {
-            summaryMap.set(key, { quantity: 1, deco, product_id: item.product_id || null, size })
-          }
-        })
-      })
+      const productById = new Map<string, ReportingProduct>(
+        (productsData ?? []).map((p: { id: string; category: string; customer_item_number?: string | null; program?: string }) => [
+          p.id,
+          { id: p.id, category: p.category, customer_item_number: p.customer_item_number }
+        ])
+      )
+      const componentSkuByName = buildComponentSkuByName(componentRows ?? [])
+      const tshirtRow = (productsData ?? []).find(
+        (p: { category: string; program?: string }) => p.category === 'tshirt' && p.program === 'RA'
+      ) as { customer_item_number?: string | null } | undefined
+      const tshirtBaseSku = tshirtRow?.customer_item_number ?? null
 
-      const summaryData = Array.from(summaryMap.entries()).map(([key, data]) => {
-        const [productName, customerItem, color, size] = key.split('|')
-        const productInfo = data.product_id ? productInfoMap.get(data.product_id) : null
-        // For t-shirts: use size-specific inventory; for kits/components: use overall inventory
-        const currentInventory = productInfo
-          ? (data.size !== 'N/A' && productInfo.inventory_by_size?.[data.size] !== undefined
-            ? productInfo.inventory_by_size[data.size]
-            : productInfo.inventory)
-          : ''
-        const reorderPoint = productInfo?.reorder_point ?? ''
-        return {
-          'Product Name': productName,
-          'Customer Item #': customerItem,
-          'Color': color,
-          'Size': size,
-          'Deco': data.deco || '',
-          'Quantity': data.quantity,
-          'Current Inventory': currentInventory,
-          'Reorder Point': reorderPoint
-        }
-      }).sort((a, b) => {
-        if (a['Product Name'] !== b['Product Name']) return a['Product Name'].localeCompare(b['Product Name'])
-        if (a['Color'] !== b['Color']) return a['Color'].localeCompare(b['Color'])
-        return a['Size'].localeCompare(b['Size'])
-      })
+      const kitCountData = buildKitCountRows(orders, productById)
+      const productCountData = buildProductCountRows(orders, productById, componentSkuByName, tshirtBaseSku)
 
       const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryData), 'Product Usage')
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(kitCountData), 'Kit Counts')
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(productCountData), 'Product Counts')
       XLSX.writeFile(wb, `ra-new-hires-product-usage-${new Date().toISOString().split('T')[0]}.xlsx`)
     } catch (err: any) {
       console.error('Export error:', err)
@@ -959,18 +933,31 @@ export default function AdminPage() {
     }
   }
 
-  /** Shared kit export logic. Builds Kit Orders + Kit Counts sheets from the given orders. */
+  /** Shared kit export: Kit Orders, Kit Counts, Product Counts (canonical SKUs). */
   const exportKitOrdersWithFilter = async (ordersToExport: OrderWithItems[], filenameSuffix: string) => {
     setShowExportModal(false)
     try {
       const { data: productsData, error: productsError } = await supabase
         .from('ra_new_hire_products')
-        .select('id, category, customer_item_number')
+        .select('id, category, customer_item_number, program')
       if (productsError) throw productsError
 
-      const productMap = new Map(
-        (productsData ?? []).map((p: { id: string; category: string; customer_item_number?: string }) => [p.id, p])
+      const { data: componentRows, error: componentError } = await supabase
+        .from('ra_new_hire_component_inventory')
+        .select('component_name, sku')
+      if (componentError) throw componentError
+
+      const productMap = new Map<string, ReportingProduct>(
+        (productsData ?? []).map((p: { id: string; category: string; customer_item_number?: string | null }) => [
+          p.id,
+          { id: p.id, category: p.category, customer_item_number: p.customer_item_number }
+        ])
       )
+      const componentSkuByName = buildComponentSkuByName(componentRows ?? [])
+      const tshirtRow = (productsData ?? []).find(
+        (p: { category: string; program?: string }) => p.category === 'tshirt' && p.program === 'RA'
+      ) as { customer_item_number?: string | null } | undefined
+      const tshirtBaseSku = tshirtRow?.customer_item_number ?? null
 
       const kitData = ordersToExport.map((order) => {
         let kitType = ''
@@ -989,18 +976,13 @@ export default function AdminPage() {
         }
       })
 
-      const kitCountMap = new Map<string, number>()
-      for (const row of kitData) {
-        const k = row['Kit Type'] as string
-        kitCountMap.set(k, (kitCountMap.get(k) ?? 0) + 1)
-      }
-      const kitCountData = Array.from(kitCountMap.entries())
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([kitType, count]) => ({ 'Kit Type': kitType, 'Count': count }))
+      const kitCountData = buildKitCountRows(ordersToExport, productMap)
+      const productCountData = buildProductCountRows(ordersToExport, productMap, componentSkuByName, tshirtBaseSku)
 
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(kitData), 'Kit Orders')
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(kitCountData), 'Kit Counts')
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(productCountData), 'Product Counts')
       const date = new Date().toISOString().split('T')[0]
       XLSX.writeFile(wb, `ra-new-hires-kit-orders${filenameSuffix ? `-${filenameSuffix}` : ''}-${date}.xlsx`)
     } catch (err: any) {
