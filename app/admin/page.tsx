@@ -759,6 +759,29 @@ export default function AdminPage() {
     XLSX.writeFile(wb, 'code-assignments-template.xlsx')
   }
 
+  // Export current list (including search filter) as Excel; columns align with import (email, code, name) plus uploaded timestamp.
+  const handleExportCodeAssignments = () => {
+    if (filteredAssignments.length === 0) {
+      setAssignmentMessage({ type: 'error', message: 'No assignments to export.' })
+      return
+    }
+    const exportData = filteredAssignments.map((r) => ({
+      email: r.email,
+      code: r.code,
+      name: r.name ?? '',
+      uploaded: new Date(r.created_at).toLocaleString()
+    }))
+    const ws = XLSX.utils.json_to_sheet(exportData)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Code Assignments')
+    const date = new Date().toISOString().split('T')[0]
+    XLSX.writeFile(wb, `code-assignments-export-${date}.xlsx`)
+    setAssignmentMessage({
+      type: 'success',
+      message: `Exported ${exportData.length} assignment(s)${assignmentSearchQuery.trim() ? ' (matching current search)' : ''}.`
+    })
+  }
+
   const handleToggleCodeStatus = async (codeId: string, currentStatus: boolean) => {
     try {
       setEditingCodeId(codeId)
@@ -1880,6 +1903,22 @@ export default function AdminPage() {
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportCodeAssignments}
+                  disabled={loadingAssignments || filteredAssignments.length === 0}
+                  className="p-2 rounded-md bg-[#c8102e] text-white hover:bg-[#e63946] hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all"
+                  title="Export assignments to Excel (email, code, name, uploaded; respects current search)"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
                   </svg>
                 </button>
                 <label className={`p-2 rounded-md cursor-pointer transition-all flex-shrink-0 ${uploadingAssignments ? 'bg-[#c8102e] text-white opacity-50 cursor-not-allowed' : 'bg-[#c8102e] text-white hover:bg-[#e63946] hover:scale-110'}`} title="Upload CSV/Excel">
