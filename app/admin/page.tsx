@@ -79,7 +79,7 @@ export default function AdminPage() {
   const [inventoryKitProducts, setInventoryKitProducts] = useState<KitProduct[]>([])
   const [showExportModal, setShowExportModal] = useState(false)
   const [showKitPendingConfirm, setShowKitPendingConfirm] = useState(false)
-  const [exportLoading, setExportLoading] = useState<'xml' | 'detailed' | 'distribution' | 'kit' | 'kitPending' | null>(null)
+  const [exportLoading, setExportLoading] = useState<'xml' | 'detailed' | 'distribution' | 'kit' | 'kitFulfillment' | 'kitPending' | null>(null)
   // Code Assignments: who was assigned which code (upload CSV/Excel, searchable backup)
   const [showCodeAssignmentsModal, setShowCodeAssignmentsModal] = useState(false)
   type CodeAssignment = { id: string; email: string; name: string | null; code: string; created_at: string }
@@ -956,8 +956,15 @@ export default function AdminPage() {
     }
   }
 
-  /** Shared kit export: Kit Orders, Kit Counts, Product Counts (canonical SKUs). */
-  const exportKitOrdersWithFilter = async (ordersToExport: OrderWithItems[], filenameSuffix: string) => {
+  /**
+   * Shared kit export: Kit Orders, Kit Counts, Product Counts (canonical SKUs).
+   * Pending exports can include class date on the Kit Orders sheet for scheduling.
+   */
+  const exportKitOrdersWithFilter = async (
+    ordersToExport: OrderWithItems[],
+    filenameSuffix: string,
+    options?: { includeClassDateInKitSheet?: boolean }
+  ) => {
     setShowExportModal(false)
     try {
       const { data: productsData, error: productsError } = await supabase
@@ -981,6 +988,7 @@ export default function AdminPage() {
         (p: { category: string; program?: string }) => p.category === 'tshirt' && p.program === 'RA'
       ) as { customer_item_number?: string | null } | undefined
       const tshirtBaseSku = tshirtRow?.customer_item_number ?? null
+      const includeClassDate = options?.includeClassDateInKitSheet === true
 
       const kitData = ordersToExport.map((order) => {
         let kitType = ''
@@ -991,12 +999,16 @@ export default function AdminPage() {
             break
           }
         }
-        return {
+        const row: Record<string, string> = {
           'Order Number': order.order_number,
           'Name': [order.first_name || '', order.last_name || ''].filter(Boolean).join(' ') || '',
           'Kit Type': kitType || 'N/A',
           'T-Shirt Size': order.tshirt_size ?? 'N/A'
         }
+        if (includeClassDate) {
+          row['Class Date'] = order.class_date ? new Date(order.class_date).toLocaleDateString() : ''
+        }
+        return row
       })
 
       const kitCountData = buildKitCountRows(ordersToExport, productMap)
@@ -1016,10 +1028,21 @@ export default function AdminPage() {
     }
   }
 
-  /** Export all orders at kit level for production fulfillment. */
-  const exportKitOrders = async () => {
+  /** Export every order at kit level (all statuses) — file name has no status suffix. */
+  const exportKitOrdersAll = async () => {
     setExportLoading('kit')
     await exportKitOrdersWithFilter(orders, '')
+  }
+
+  /** Kit-level export for orders currently in Fulfillment status only. */
+  const exportKitOrdersFulfillmentOnly = async () => {
+    const fulfillmentOnly = orders.filter((o) => o.status === 'Fulfillment')
+    if (fulfillmentOnly.length === 0) {
+      alert('No orders with Fulfillment status to export.')
+      return
+    }
+    setExportLoading('kitFulfillment')
+    await exportKitOrdersWithFilter(fulfillmentOnly, 'fulfillment')
   }
 
   /** Open Kit Orders (pending) confirmation before export. */
@@ -1038,7 +1061,7 @@ export default function AdminPage() {
     }
     try {
       setExportLoading('kitPending')
-      await exportKitOrdersWithFilter(pendingOrders, 'pending')
+      await exportKitOrdersWithFilter(pendingOrders, 'pending', { includeClassDateInKitSheet: true })
       if (updateStatusAfterDownload) {
         const orderIds = pendingOrders.map((o) => o.id)
         const { error } = await supabase
@@ -2508,8 +2531,15 @@ export default function AdminPage() {
                 Detailed Orders
               </button>
               <button
-                onClick={exportKitOrders}
+                onClick={exportKitOrdersAll}
                 disabled={orders.length === 0}
+                className="w-full px-4 py-3 text-left rounded-md bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Kit Orders (All)
+              </button>
+              <button
+                onClick={exportKitOrdersFulfillmentOnly}
+                disabled={orders.filter((o) => o.status === 'Fulfillment').length === 0}
                 className="w-full px-4 py-3 text-left rounded-md bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Kit Orders (fulfillment)
