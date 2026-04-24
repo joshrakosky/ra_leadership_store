@@ -78,6 +78,8 @@ export default function AdminPage() {
   type KitProduct = { id: string; name: string; program: string; customer_item_number: string | null; kit_items: Array<{ name: string }> | null }
   const [inventoryKitProducts, setInventoryKitProducts] = useState<KitProduct[]>([])
   const [showExportModal, setShowExportModal] = useState(false)
+  // Toggle when XML export should return to the Export modal.
+  const showXmlExport = false
   const [showKitPendingConfirm, setShowKitPendingConfirm] = useState(false)
   const [exportLoading, setExportLoading] = useState<'xml' | 'detailed' | 'distribution' | 'kit' | 'kitFulfillment' | 'kitPending' | null>(null)
   // Code Assignments: who was assigned which code (upload CSV/Excel, searchable backup)
@@ -958,7 +960,7 @@ export default function AdminPage() {
 
   /**
    * Shared kit export: Kit Orders, Kit Counts, Product Counts (canonical SKUs).
-   * Pending exports can include class date on the Kit Orders sheet for scheduling.
+   * Pending and fulfillment-only kit exports can include class date on the Kit Orders sheet.
    */
   const exportKitOrdersWithFilter = async (
     ordersToExport: OrderWithItems[],
@@ -1042,7 +1044,7 @@ export default function AdminPage() {
       return
     }
     setExportLoading('kitFulfillment')
-    await exportKitOrdersWithFilter(fulfillmentOnly, 'fulfillment')
+    await exportKitOrdersWithFilter(fulfillmentOnly, 'fulfillment', { includeClassDateInKitSheet: true })
   }
 
   /** Open Kit Orders (pending) confirmation before export. */
@@ -2466,7 +2468,7 @@ export default function AdminPage() {
             className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full mx-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Kit Orders (pending)</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Kit Orders (Pending)</h2>
             <p className="text-gray-600 mb-6">
               Do you want to update the status of these {orders.filter((o) => (o.status || 'Pending') === 'Pending').length} order(s) to Fulfillment after download?
             </p>
@@ -2509,19 +2511,21 @@ export default function AdminPage() {
           >
             <h2 className="text-xl font-bold text-gray-900 mb-4">Export</h2>
             <div className="space-y-2">
-              <button
-                onClick={exportToXml}
-                disabled={orders.length === 0}
-                className="w-full px-4 py-3 text-left rounded-md bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                XML (Foremost fulfillment)
-              </button>
+              {showXmlExport && (
+                <button
+                  onClick={exportToXml}
+                  disabled={orders.length === 0}
+                  className="w-full px-4 py-3 text-left rounded-md bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  XML (Foremost fulfillment)
+                </button>
+              )}
               <button
                 onClick={exportDistributionSummary}
                 disabled={orders.length === 0}
                 className="w-full px-4 py-3 text-left rounded-md bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Product Usage (distribution summary)
+                Product Usage
               </button>
               <button
                 onClick={exportDetailedOrders}
@@ -2542,14 +2546,14 @@ export default function AdminPage() {
                 disabled={orders.filter((o) => o.status === 'Fulfillment').length === 0}
                 className="w-full px-4 py-3 text-left rounded-md bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Kit Orders (fulfillment)
+                Kit Orders (Fulfillment)
               </button>
               <button
                 onClick={handleKitOrdersPendingClick}
                 disabled={orders.filter((o) => (o.status || 'Pending') === 'Pending').length === 0}
                 className="w-full px-4 py-3 text-left rounded-md bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Kit Orders (pending)
+                Kit Orders (Pending)
               </button>
             </div>
             <button
