@@ -255,9 +255,9 @@ export async function POST(request: NextRequest) {
 
     if (itemsError) throw itemsError
 
-    // Mark code as used in access codes table if it exists
+    // Mark code as used in access codes table if it exists (must succeed or client sees success while row stays stale)
     if (accessCode) {
-      await supabase
+      const { error: accessCodeUpdateError } = await supabase
         .from('ra_new_hire_access_codes')
         .update({
           used: true,
@@ -266,6 +266,13 @@ export async function POST(request: NextRequest) {
           email: email.toLowerCase()
         })
         .eq('id', accessCode.id)
+      if (accessCodeUpdateError) {
+        console.error('Access code update failed after order created:', accessCodeUpdateError)
+        throw new Error(
+          accessCodeUpdateError.message ||
+            'Order was created but the access code could not be marked as used. Check ra_new_hire_access_codes schema (email column) and RLS UPDATE policy.'
+        )
+      }
     }
 
     return NextResponse.json({

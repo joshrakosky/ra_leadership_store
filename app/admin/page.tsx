@@ -13,10 +13,21 @@ import {
 } from '@/lib/sku-reporting'
 import HelpIcon from '@/components/HelpIcon'
 
+/** PostgREST errors often have message/code on the prototype; `console.log(err)` can look like `{}`. */
+function messageFromSupabaseError(err: unknown): string {
+  if (err instanceof Error && err.message) return err.message
+  if (!err || typeof err !== 'object') return String(err)
+  const o = err as { message?: string; details?: string; hint?: string; code?: string }
+  const parts = [o.message, o.details, o.hint, o.code].filter(Boolean)
+  return parts.length > 0 ? parts.join(' — ') : 'Request failed (no details from server).'
+}
+
 export default function AdminPage() {
   const router = useRouter()
   const [orders, setOrders] = useState<OrderWithItems[]>([])
   const [loading, setLoading] = useState(true)
+  /** Shown when the orders + items fetch fails (distinct from “no orders yet”). */
+  const [ordersLoadError, setOrdersLoadError] = useState<string | null>(null)
   const [authenticated, setAuthenticated] = useState(false)
   const [cancelingOrderId, setCancelingOrderId] = useState<string | null>(null)
   const [confirmCancel, setConfirmCancel] = useState<{ orderId: string; orderNumber: string } | null>(null)
@@ -325,36 +336,56 @@ export default function AdminPage() {
   const loadOrders = async () => {
     try {
       setLoading(true)
-      
-      // Fetch orders with their items
+      setOrdersLoadError(null)
+
       const { data: ordersData, error: ordersError } = await supabase
         .from('ra_new_hire_orders')
         .select('*')
         .order('created_at', { ascending: false })
 
-      if (ordersError) throw ordersError
+      if (ordersError) {
+        throw new Error(messageFromSupabaseError(ordersError))
+      }
 
-      // Fetch order items for each order
-      const ordersWithItems = await Promise.all(
-        (ordersData || []).map(async (order) => {
-          const { data: items, error: itemsError } = await supabase
-            .from('ra_new_hire_order_items')
-            .select('*')
-            .eq('order_id', order.id)
-            .order('created_at')
+      const ordersList = ordersData ?? []
+      const orderIds = ordersList.map((o) => o.id).filter(Boolean)
+      // One items query per chunk avoids hundreds of parallel requests (brittle in the browser) and long URLs.
+      const itemsByOrderId: Record<string, OrderWithItems['items']> = {}
+      const ID_CHUNK = 100
+      for (let i = 0; i < orderIds.length; i += ID_CHUNK) {
+        const chunk = orderIds.slice(i, i + ID_CHUNK)
+        const { data: chunkItems, error: itemsError } = await supabase
+          .from('ra_new_hire_order_items')
+          .select('*')
+          .in('order_id', chunk)
 
-          if (itemsError) throw itemsError
+        if (itemsError) {
+          throw new Error(messageFromSupabaseError(itemsError))
+        }
+        for (const item of chunkItems ?? []) {
+          const oid = item.order_id as string
+          if (!itemsByOrderId[oid]) itemsByOrderId[oid] = []
+          itemsByOrderId[oid].push(item)
+        }
+      }
+      for (const oid of Object.keys(itemsByOrderId)) {
+        itemsByOrderId[oid].sort(
+          (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        )
+      }
 
-          return {
-            ...order,
-            items: items || []
-          }
-        })
-      )
+      const ordersWithItems: OrderWithItems[] = ordersList.map((order) => ({
+        ...order,
+        items: itemsByOrderId[order.id] ?? []
+      }))
 
       setOrders(ordersWithItems)
-    } catch (err: any) {
-      console.error('Failed to load orders:', err)
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : messageFromSupabaseError(err)
+      console.error('Failed to load orders:', message, err)
+      setOrdersLoadError(message)
+      setOrders([])
     } finally {
       setLoading(false)
     }
@@ -822,12 +853,18 @@ export default function AdminPage() {
 
     try {
       setEditingCodeId(codeId)
-      const { error } = await supabase
+      const { data: deletedRows, error } = await supabase
         .from('ra_new_hire_access_codes')
         .delete()
         .eq('id', codeId)
+        .select('id')
 
       if (error) throw error
+      if (!deletedRows?.length) {
+        throw new Error(
+          'No row was deleted. Check RLS: ra_new_hire_access_codes needs a FOR DELETE policy (see migrations/30-ra-new-hire-access-codes-delete-policy.sql).'
+        )
+      }
 
       await loadAccessCodes()
       setCodeMessage({
@@ -1144,10 +1181,23 @@ export default function AdminPage() {
   const currentPageSelectedOrders = paginatedOrders.filter(o => selectedOrders.has(o.id))
   const allCurrentPageSelected = paginatedOrders.length > 0 && currentPageSelectedOrders.length === paginatedOrders.length
 
+  // Match portal logic: a code is consumed if an order exists, even when access_codes.used was never updated.
+  const orderCodesClaimedSet = useMemo(() => {
+    const s = new Set<string>()
+    for (const o of orders) {
+      if (o.code) s.add(String(o.code).toUpperCase())
+    }
+    return s
+  }, [orders])
+
+  const isAccessCodeEffectivelyUsed = (row: { code?: string; used?: boolean }) =>
+    Boolean(row.used) ||
+    Boolean(row.code && orderCodesClaimedSet.has(String(row.code).toUpperCase()))
+
   // Code Manager: filtered list and pagination
   const filteredAccessCodes = accessCodes.filter(code => {
-    if (codeFilter === 'used') return code.used
-    if (codeFilter === 'unused') return !code.used
+    if (codeFilter === 'used') return isAccessCodeEffectivelyUsed(code)
+    if (codeFilter === 'unused') return !isAccessCodeEffectivelyUsed(code)
     return true
   })
   const codeManagerTotalPages = Math.max(1, Math.ceil(filteredAccessCodes.length / codeManagerItemsPerPage))
@@ -1203,6 +1253,18 @@ export default function AdminPage() {
           {loading ? (
             <div className="text-center py-12">
               <div className="text-lg text-gray-600">Loading orders...</div>
+            </div>
+          ) : ordersLoadError ? (
+            <div className="text-center py-12 space-y-4 max-w-lg mx-auto">
+              <div className="text-lg font-medium text-red-700">Could not load orders</div>
+              <p className="text-sm text-gray-700 break-words">{ordersLoadError}</p>
+              <button
+                type="button"
+                onClick={loadOrders}
+                className="px-4 py-2 rounded-md bg-[#c8102e] text-white hover:bg-[#e63946] transition-colors"
+              >
+                Retry
+              </button>
             </div>
           ) : orders.length === 0 ? (
             <div className="text-center py-12">
@@ -1770,7 +1832,7 @@ export default function AdminPage() {
                                 {code.code}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                                {code.used ? (
+                                {isAccessCodeEffectivelyUsed(code) ? (
                                   <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-medium">
                                     Used
                                   </span>
