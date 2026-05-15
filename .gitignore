@@ -24,6 +24,10 @@
 .DS_Store
 *.pem
 
+# Partner PGP: never commit keys, ciphertext, or decrypted partner data (keep README only)
+/partner-pgp-local/**
+!/partner-pgp-local/README.md
+
 # debug
 npm-debug.log*
 yarn-debug.log*

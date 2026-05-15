@@ -997,7 +997,7 @@ export default function AdminPage() {
 
   /**
    * Shared kit export: Kit Orders, Kit Counts, Product Counts (canonical SKUs).
-   * Pending and fulfillment-only kit exports can include class date on the Kit Orders sheet.
+   * Pending and fulfillment-only kit exports include class date and class type on the Kit Orders sheet.
    */
   const exportKitOrdersWithFilter = async (
     ordersToExport: OrderWithItems[],
@@ -1046,6 +1046,8 @@ export default function AdminPage() {
         }
         if (includeClassDate) {
           row['Class Date'] = order.class_date ? new Date(order.class_date).toLocaleDateString() : ''
+          // Same training metadata as admin grid / full Excel export; helps kitting for pending + fulfillment batches.
+          row['Class Type'] = order.class_type ?? ''
         }
         return row
       })

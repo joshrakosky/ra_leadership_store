@@ -84,6 +84,7 @@ See `supabase-schema-ra-new-hires.sql` for the complete schema.
 ## Documentation
 
 - `RA_NEW_HIRES_SETUP.md` - Detailed setup guide with examples
+- `docs/PARTNER_PGP_SOP.md` - Partner file feeds encrypted with OpenPGP (public key handoff, decrypt, import)
 
 ## Default Shipping Address
 
