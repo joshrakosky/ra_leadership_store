@@ -22,6 +22,26 @@ function messageFromSupabaseError(err: unknown): string {
   return parts.length > 0 ? parts.join(' — ') : 'Request failed (no details from server).'
 }
 
+/** Opens default mail client to resend a new-hire kit code to the assignee. */
+function buildResendCodeMailto(assignment: { email: string; code: string }): string {
+  const subject = 'Republic Airways New Hire Kit'
+  const body = [
+    'Hi,',
+    '',
+    "We're thrilled to welcome you to Republic Airways and start our journey together.",
+    '',
+    'Before takeoff, please use the following redemption code to select your desired new hire swag kit. Your selected kit will be delivered to the Republic Airways Training Center for pick up.',
+    '',
+    'Link: https://ra-new-hires.vercel.app/',
+    '',
+    `Code: ${assignment.code}`,
+    '',
+    'Thanks!',
+  ].join('\r\n')
+
+  return `mailto:${encodeURIComponent(assignment.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+}
+
 export default function AdminPage() {
   const router = useRouter()
   const [orders, setOrders] = useState<OrderWithItems[]>([])
@@ -2091,12 +2111,13 @@ export default function AdminPage() {
                               <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                               <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
                               <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Uploaded</th>
+                              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
                             {filteredAssignments.length === 0 ? (
                               <tr>
-                                <td colSpan={4} className="px-6 py-8 text-center text-sm text-gray-600">
+                                <td colSpan={5} className="px-6 py-8 text-center text-sm text-gray-600">
                                   {codeAssignments.length === 0 ? 'No assignments yet. Upload a CSV or Excel file to get started.' : 'No matches for search.'}
                                 </td>
                               </tr>
@@ -2107,6 +2128,17 @@ export default function AdminPage() {
                                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">{row.email}</td>
                                   <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900 text-center">{row.code}</td>
                                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">{new Date(row.created_at).toLocaleDateString()}</td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                                    <a
+                                      href={buildResendCodeMailto(row)}
+                                      className="inline-flex p-2 rounded-md bg-[#c8102e] text-white hover:bg-[#e63946] hover:scale-110 transition-all"
+                                      title="Resend code email"
+                                    >
+                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                      </svg>
+                                    </a>
+                                  </td>
                                 </tr>
                               ))
                             )}
