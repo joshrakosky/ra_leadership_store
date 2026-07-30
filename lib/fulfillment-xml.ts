@@ -5,6 +5,7 @@
  */
 
 import { supabase } from '@/lib/supabase'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { fulfillmentSchema } from './fulfillment-schema'
 
 // Minimal types for DB records used in XML generation
@@ -128,25 +129,26 @@ function expandOrderItems(
 export async function buildFulfillmentXml(options: FulfillmentXmlOptions = {}): Promise<string> {
   const schema = options.schema ?? fulfillmentSchema
 
-  // Fetch orders
-  let query = supabase
-    .from('ra_new_hire_orders')
-    .select('*')
-    .order('created_at', { ascending: false })
+  // Page through PostgREST's 1000-row default limit so fulfillment XML includes all matching orders.
+  const ordersData = await fetchAllRows((from, to) => {
+    let query = supabase
+      .from('ra_new_hire_orders')
+      .select('*')
+      .order('created_at', { ascending: false })
 
-  if (options.statusFilter) {
-    const statuses = options.statusFilter.split(',').map((s) => s.trim()).filter(Boolean)
-    if (statuses.length > 0) {
-      query = query.in('status', statuses)
+    if (options.statusFilter) {
+      const statuses = options.statusFilter.split(',').map((s) => s.trim()).filter(Boolean)
+      if (statuses.length > 0) {
+        query = query.in('status', statuses)
+      }
     }
-  }
 
-  if (options.since) {
-    query = query.gte('created_at', options.since)
-  }
+    if (options.since) {
+      query = query.gte('created_at', options.since)
+    }
 
-  const { data: ordersData, error: ordersError } = await query
-  if (ordersError) throw ordersError
+    return query.range(from, to)
+  })
 
   if (!ordersData || ordersData.length === 0) {
     return `<?xml version="1.0" encoding="UTF-8"?>\n<${schema.orders}>\n</${schema.orders}>`

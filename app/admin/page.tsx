@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 import * as XLSX from 'xlsx'
 import { OrderWithItems } from '@/types'
 import {
@@ -358,18 +359,17 @@ export default function AdminPage() {
       setLoading(true)
       setOrdersLoadError(null)
 
-      const { data: ordersData, error: ordersError } = await supabase
-        .from('ra_new_hire_orders')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (ordersError) {
-        throw new Error(messageFromSupabaseError(ordersError))
-      }
-
-      const ordersList = ordersData ?? []
+      // Page through PostgREST's 1000-row default limit so all historical orders load.
+      const ordersList = await fetchAllRows((from, to) =>
+        supabase
+          .from('ra_new_hire_orders')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(from, to)
+      )
       const orderIds = ordersList.map((o) => o.id).filter(Boolean)
       // One items query per chunk avoids hundreds of parallel requests (brittle in the browser) and long URLs.
+      // ID_CHUNK=100 keeps each response under PostgREST's 1000-row default (~5 items/order ≈ 500 rows).
       const itemsByOrderId: Record<string, OrderWithItems['items']> = {}
       const ID_CHUNK = 100
       for (let i = 0; i < orderIds.length; i += ID_CHUNK) {

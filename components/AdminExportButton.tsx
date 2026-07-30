@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 import * as XLSX from 'xlsx'
 import { OrderWithItems } from '@/types'
 
@@ -27,13 +28,14 @@ export default function AdminExportButton() {
     try {
       setLoading(true)
 
-      // Fetch all orders with their items
-      const { data: ordersData, error: ordersError } = await supabase
-        .from('ra_new_hire_orders')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (ordersError) throw ordersError
+      // Page through PostgREST's 1000-row default limit so exports include full order history.
+      const ordersData = await fetchAllRows((from, to) =>
+        supabase
+          .from('ra_new_hire_orders')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(from, to)
+      )
 
       // Fetch all products to get deco information, current inventory, and kit_items
       const { data: productsData, error: productsError } = await supabase
