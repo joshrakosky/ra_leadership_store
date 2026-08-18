@@ -2,12 +2,12 @@
 
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import AdminExportButton from '@/components/AdminExportButton'
+import ExportOrdersButton from '@/components/ExportOrdersButton'
 import HelpIcon from '@/components/HelpIcon'
 
 export default function ConfirmationPage() {
   const router = useRouter()
-  const [orderNumber, setOrderNumber] = useState<string>('')
+  const [orderNumber, setOrderNumber] = useState('')
 
   useEffect(() => {
     const orderNum = sessionStorage.getItem('orderNumber')
@@ -15,6 +15,8 @@ export default function ConfirmationPage() {
       router.push('/')
       return
     }
+    // sessionStorage is client-only; apply after mount so SSR stays empty.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOrderNumber(orderNum)
   }, [router])
 
@@ -23,15 +25,22 @@ export default function ConfirmationPage() {
     router.push('/')
   }
 
+  if (!orderNumber) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#00263a' }}>
+        <div className="text-white text-xl">Loading...</div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4 relative" style={{ backgroundColor: '#00263a' }}>
-      <AdminExportButton />
+      <ExportOrdersButton />
       <HelpIcon />
-      <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center relative">
-        {/* Close button */}
+      <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center relative z-10">
         <button
           onClick={handleClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 focus:outline-none focus:text-gray-600 transition-colors"
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 focus:outline-none transition-colors"
           aria-label="Close"
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -42,14 +51,14 @@ export default function ConfirmationPage() {
         <div className="mb-6">
           <div className="text-6xl mb-4">✅</div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Order Confirmed!</h1>
-          <p className="text-gray-600">
-            Thank you for your order
-          </p>
+          <p className="text-gray-600">Thank you for your Airport Operations order</p>
         </div>
 
         <div className="bg-gray-50 rounded-lg p-6 mb-6">
           <p className="text-sm text-gray-600 mb-2">Your Order Number:</p>
-          <p className="text-2xl font-bold" style={{ color: '#c8102e' }}>{orderNumber}</p>
+          <p className="text-2xl font-bold" style={{ color: '#c8102e' }}>
+            {orderNumber}
+          </p>
         </div>
 
         <p className="text-sm text-gray-600 mb-6">
@@ -57,9 +66,8 @@ export default function ConfirmationPage() {
         </p>
 
         <a
-          href={`mailto:?subject=Republic Airways New Hires Order Confirmation - ${orderNumber}&body=Thank you for your order!%0D%0A%0D%0AYour Order Number: ${orderNumber}%0D%0A%0D%0AThank you`}
+          href={`mailto:?subject=Republic Airways Airport Operations Order Confirmation - ${orderNumber}&body=Thank you for your order!%0D%0A%0D%0AYour Order Number: ${orderNumber}%0D%0A%0D%0AThank you`}
           onClick={() => {
-            // Clear session after a short delay to allow mailto to open
             setTimeout(() => {
               sessionStorage.clear()
             }, 100)
@@ -73,4 +81,3 @@ export default function ConfirmationPage() {
     </div>
   )
 }
-

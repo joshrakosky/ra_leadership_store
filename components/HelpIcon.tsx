@@ -10,7 +10,7 @@ export default function HelpIcon() {
       {/* Help Icon */}
       <button
         onClick={() => setShowHelp(true)}
-        className="absolute top-4 left-4 w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg transition-opacity shadow-md z-40 hover:opacity-90"
+        className="fixed top-4 left-4 w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg transition-opacity shadow-md z-40 hover:opacity-90"
         style={{ backgroundColor: '#c8102e' }}
         aria-label="Help"
       >

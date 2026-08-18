@@ -1,124 +1,58 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
-import AdminExportButton from '@/components/AdminExportButton'
+import { useEffect, useState } from 'react'
+import ExportOrdersButton from '@/components/ExportOrdersButton'
 import HelpIcon from '@/components/HelpIcon'
-
-type Program = 'RA' | 'LIFT'
+import { HQ_SHIPPING } from '@/lib/shipping'
+import { getVest } from '@/lib/vests'
+import type { ShippingInfo, VestSelection } from '@/types'
 
 export default function ReviewPage() {
   const router = useRouter()
-  const [program, setProgram] = useState<Program | null>(null)
-  const [tshirtSize, setTshirtSize] = useState<string>('')
-  const [kitId, setKitId] = useState<string>('')
-  const [tshirtProduct, setTshirtProduct] = useState<any>(null)
-  const [kitProduct, setKitProduct] = useState<any>(null)
-  const [shipping, setShipping] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+  const [vest, setVest] = useState<VestSelection | null>(null)
+  const [shipping, setShipping] = useState<ShippingInfo | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    // Check if user has completed all steps
-    const userCode = sessionStorage.getItem('userCode')
-    const selectedProgram = sessionStorage.getItem('selectedProgram') as Program | null
-    const tshirtSizeData = sessionStorage.getItem('tshirtSize')
-    const selectedKitId = sessionStorage.getItem('selectedKitId')
+    const vestData = sessionStorage.getItem('vestSelection')
     const shippingData = sessionStorage.getItem('shipping')
-    
-    if (!userCode) {
-      router.push('/')
+
+    if (!vestData) {
+      router.push('/vests')
       return
     }
-
-    if (!selectedProgram || (selectedProgram !== 'RA' && selectedProgram !== 'LIFT')) {
-      router.push('/program')
-      return
-    }
-
-    if (!tshirtSizeData) {
-      router.push('/tshirt-size')
-      return
-    }
-
-    if (!selectedKitId) {
-      router.push('/kit-selection')
-      return
-    }
-
     if (!shippingData) {
       router.push('/shipping')
       return
     }
 
-    // Parse stored data
-    const parsedShipping = JSON.parse(shippingData)
-
-    setProgram(selectedProgram)
-    setTshirtSize(tshirtSizeData)
-    setKitId(selectedKitId)
-    setShipping(parsedShipping)
-
-    // Load product details
-    loadProducts(selectedProgram, selectedKitId)
+    try {
+      setVest(JSON.parse(vestData) as VestSelection)
+      setShipping(JSON.parse(shippingData) as ShippingInfo)
+    } catch {
+      router.push('/vests')
+    }
   }, [router])
 
-  const loadProducts = async (programType: Program, kitIdData: string) => {
-    try {
-      // Load t-shirt product (always use 'RA' since t-shirts are consolidated)
-      const { data: tshirtData, error: tshirtError } = await supabase
-        .from('ra_new_hire_products')
-        .select('*')
-        .eq('category', 'tshirt')
-        .eq('program', 'RA')
-        .single()
-
-      if (tshirtError) throw tshirtError
-      setTshirtProduct(tshirtData)
-
-      // Load kit product
-      const { data: kitData, error: kitError } = await supabase
-        .from('ra_new_hire_products')
-        .select('*')
-        .eq('id', kitIdData)
-        .single()
-
-      if (kitError) throw kitError
-      setKitProduct(kitData)
-    } catch (err: any) {
-      setError(err.message || 'Failed to load product information')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handleSubmit = async () => {
+    if (!vest || !shipping) return
     setError('')
     setSubmitting(true)
 
     try {
-      const userCode = sessionStorage.getItem('userCode')!
-      const email = sessionStorage.getItem('orderEmail')!
-
-      // Submit order to API
       const response = await fetch('/api/orders', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          code: userCode,
           email: shipping.email,
           firstName: shipping.firstName,
           lastName: shipping.lastName,
-          program: program,
-          tshirtSize: tshirtSize,
-          kitId: kitId,
-          shipping: shipping,
-          classDate: shipping.classDate || null,
-          classType: shipping.classType || null
+          style: vest.style,
+          color: vest.color,
+          size: vest.size,
+          sku: vest.sku,
         }),
       })
 
@@ -128,25 +62,18 @@ export default function ReviewPage() {
       }
 
       const orderData = await response.json()
-      
-      // Store order number for confirmation page
       sessionStorage.setItem('orderNumber', orderData.order_number)
-      
-      // Clear selections
-      sessionStorage.removeItem('selectedProgram')
-      sessionStorage.removeItem('tshirtSize')
-      sessionStorage.removeItem('selectedKitId')
+      sessionStorage.removeItem('vestSelection')
       sessionStorage.removeItem('shipping')
-      sessionStorage.removeItem('orderEmail')
-      
       router.push('/confirmation')
-    } catch (err: any) {
-      setError(err.message || 'Failed to submit order. Please try again.')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to submit order. Please try again.'
+      setError(message)
       setSubmitting(false)
     }
   }
 
-  if (loading) {
+  if (!vest || !shipping) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#00263a' }}>
         <div className="text-white text-xl">Loading...</div>
@@ -156,13 +83,13 @@ export default function ReviewPage() {
 
   return (
     <div className="min-h-screen py-12 px-4 relative" style={{ backgroundColor: '#00263a' }}>
-      <AdminExportButton />
+      <ExportOrdersButton />
       <HelpIcon />
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-3xl mx-auto relative z-10">
         <div className="bg-white rounded-lg shadow-lg p-8">
           <div className="mb-6 text-center">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Review Your Order</h1>
-            <p className="text-gray-600">Please review your selections before submitting</p>
+            <p className="text-gray-600">Please confirm your vest and shipping details</p>
           </div>
 
           {error && (
@@ -171,61 +98,46 @@ export default function ReviewPage() {
             </div>
           )}
 
-          {/* Program & T-Shirt Section */}
           <div className="mb-6 pb-6 border-b">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Selected Items</h2>
-            <div className="space-y-4">
-              {/* T-Shirt */}
-              {tshirtProduct && (
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <p className="font-medium text-gray-900">{tshirtProduct.name}</p>
-                  <p className="text-sm text-gray-600">Size: {tshirtSize}</p>
-                </div>
-              )}
-
-              {/* Kit */}
-              {kitProduct && (
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <p className="font-medium text-gray-900">{kitProduct.name}</p>
-                  {kitProduct.description && (
-                    <p className="text-sm text-gray-600 mt-1">{kitProduct.description}</p>
-                  )}
-                </div>
-              )}
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Selected Vest</h2>
+            <div className="bg-gray-50 rounded-lg p-4 flex gap-4 items-center">
+              <img
+                src={vest.imageUrl}
+                alt={`${vest.style} ${vest.color}`}
+                className="w-24 h-24 object-cover rounded-md"
+              />
+              <div>
+                <p className="font-medium text-gray-900">{getVest(vest.style)?.name || vest.style}</p>
+                <p className="text-sm text-gray-600">Color: {vest.color}</p>
+                <p className="text-sm text-gray-600">Size: {vest.size}</p>
+              </div>
             </div>
           </div>
 
-          {/* Your Information Section */}
           <div className="mb-6 pb-6 border-b">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Your Information</h2>
             <div className="bg-gray-50 rounded-lg p-4 space-y-1">
-              <p className="font-medium text-gray-900">{shipping.firstName} {shipping.lastName}</p>
+              <p className="font-medium text-gray-900">
+                {shipping.firstName} {shipping.lastName}
+              </p>
               <p className="text-sm text-gray-600">Email: {shipping.email}</p>
-              {shipping.classDate && (
-                <p className="text-sm text-gray-600">Class Date: {new Date(shipping.classDate).toLocaleDateString()}</p>
-              )}
-              {shipping.classType && (
-                <p className="text-sm text-gray-600">Class Type: {shipping.classType}</p>
-              )}
             </div>
           </div>
 
-          {/* Shipping Address Section */}
           <div className="mb-6 pb-6 border-b">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Shipping Address</h2>
+            <p className="text-sm text-gray-600 mb-3">
+              These orders ship to Republic HQ at the address below.
+            </p>
             <div className="bg-gray-50 rounded-lg p-4">
-              <p className="font-medium text-gray-900">{shipping.name}</p>
-              {shipping.attention && <p className="text-sm text-gray-600">Attn: {shipping.attention}</p>}
-              <p className="text-sm text-gray-600">{shipping.address}</p>
-              {shipping.address2 && <p className="text-sm text-gray-600">{shipping.address2}</p>}
+              <p className="font-medium text-gray-900">{HQ_SHIPPING.name}</p>
+              <p className="text-sm text-gray-600">{HQ_SHIPPING.address}</p>
               <p className="text-sm text-gray-600">
-                {shipping.city}, {shipping.state} {shipping.zip}
+                {HQ_SHIPPING.city}, {HQ_SHIPPING.state} {HQ_SHIPPING.zip}
               </p>
-              <p className="text-sm text-gray-600">{shipping.country}</p>
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="mt-8 flex justify-between">
             <button
               type="button"
@@ -249,4 +161,3 @@ export default function ReviewPage() {
     </div>
   )
 }
-
