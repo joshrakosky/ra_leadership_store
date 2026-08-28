@@ -105,6 +105,34 @@ export function productRequiresColor(product: LeadershipProduct): boolean {
   return (product.available_colors?.length ?? 0) > 0
 }
 
+export const PRODUCT_STYLES = ["Men's", "Women's", "Bags", "Misc"] as const
+
+export type ProductStyle = (typeof PRODUCT_STYLES)[number]
+
+/** Classify from the product name so we do not need a DB style column yet. */
+export function getProductStyle(product: LeadershipProduct): ProductStyle {
+  const name = product.name.toLowerCase()
+  if (/\bwom[ae]n['’]?s?\b/.test(name)) return "Women's"
+  if (/\b(backpack|duffel|duffle|bag|cooler|tote)\b/.test(name)) return 'Bags'
+  if (/\b(blanket|throw)\b/.test(name)) return 'Misc'
+  return "Men's"
+}
+
+/** Apparel first, then bags, then Misc. Keeps existing sort_order within each group. */
+function catalogGridRank(style: ProductStyle): number {
+  if (style === 'Bags') return 1
+  if (style === 'Misc') return 2
+  return 0
+}
+
+export function sortCatalogForGrid(products: LeadershipProduct[]): LeadershipProduct[] {
+  return [...products].sort((a, b) => {
+    const rankDiff = catalogGridRank(getProductStyle(a)) - catalogGridRank(getProductStyle(b))
+    if (rankDiff !== 0) return rankDiff
+    return a.sort_order - b.sort_order
+  })
+}
+
 export function getProductColor(product: LeadershipProduct, colorName: string): ProductColor | undefined {
   return product.available_colors?.find((color) => color.name === colorName)
 }
@@ -126,5 +154,5 @@ export async function fetchActiveProducts(): Promise<LeadershipProduct[]> {
     .order('sort_order', { ascending: true })
 
   if (error) throw error
-  return (data ?? []).map((row) => toLeadershipProduct(row as Record<string, unknown>))
+  return sortCatalogForGrid((data ?? []).map((row) => toLeadershipProduct(row as Record<string, unknown>)))
 }

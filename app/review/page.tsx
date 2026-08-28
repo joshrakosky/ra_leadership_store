@@ -109,7 +109,7 @@ export default function ReviewPage() {
               <CatalogImage
                 src={product.imageUrl}
                 alt={product.name}
-                className="w-24 h-24 object-cover rounded-md"
+                className="block w-20 h-[120px] object-cover object-top rounded-md"
               />
               <div>
                 <p className="font-medium text-gray-900">{product.name}</p>

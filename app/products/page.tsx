@@ -1,17 +1,20 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import CatalogImage from '@/components/CatalogImage'
 import ExportOrdersButton from '@/components/ExportOrdersButton'
 import HelpIcon from '@/components/HelpIcon'
 import {
   fetchActiveProducts,
   getProductColor,
+  getProductStyle,
   previewImage,
+  PRODUCT_STYLES,
   productRequiresColor,
   productRequiresSize,
   type LeadershipProduct,
+  type ProductStyle,
 } from '@/lib/products'
 import type { ProductSelection } from '@/types'
 
@@ -25,6 +28,8 @@ export default function ProductChoicePage() {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [selections, setSelections] = useState<Record<string, CardSelection>>({})
   const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
+  const [styleFilter, setStyleFilter] = useState<ProductStyle | ''>('')
 
   useEffect(() => {
     let cancelled = false
@@ -99,6 +104,17 @@ export default function ProductChoicePage() {
     router.push('/shipping')
   }
 
+  const visibleProducts = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    return products.filter((product) => {
+      if (styleFilter && getProductStyle(product) !== styleFilter) return false
+      if (!query) return true
+      const colorNames = (product.available_colors ?? []).map((color) => color.name).join(' ')
+      const haystack = `${product.name} ${product.sku} ${colorNames}`.toLowerCase()
+      return haystack.includes(query)
+    })
+  }, [products, search, styleFilter])
+
   const canContinue = (() => {
     if (!activeProduct) return false
     const current = selections[activeProduct.id]
@@ -112,7 +128,7 @@ export default function ProductChoicePage() {
       <ExportOrdersButton />
       <HelpIcon />
 
-      {/* Wide enough for 15 products as three rows of five on desktop. */}
+      {/* 5-up on desktop. Bags and Misc are sorted last in fetchActiveProducts. */}
       <div className="max-w-7xl mx-auto relative z-10">
         <div className="text-center mb-10">
           <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
@@ -121,6 +137,36 @@ export default function ProductChoicePage() {
           <p className="text-white/80">
             Select 1 product of your choice
           </p>
+        </div>
+
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <label htmlFor="product-search" className="sr-only">
+            Search products
+          </label>
+          <input
+            id="product-search"
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search products"
+            className="w-full sm:max-w-xs px-4 py-2 rounded-md bg-white text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#c8102e]"
+          />
+          <label htmlFor="product-style" className="sr-only">
+            Filter by style
+          </label>
+          <select
+            id="product-style"
+            value={styleFilter}
+            onChange={(e) => setStyleFilter(e.target.value as ProductStyle | '')}
+            className="w-full sm:w-48 px-4 py-2 rounded-md bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#c8102e]"
+          >
+            <option value="">All styles</option>
+            {PRODUCT_STYLES.map((style) => (
+              <option key={style} value={style}>
+                {style}
+              </option>
+            ))}
+          </select>
         </div>
 
         {loading && <p className="text-center text-white/80">Loading products...</p>}
@@ -141,8 +187,14 @@ export default function ProductChoicePage() {
           </div>
         )}
 
+        {!loading && !loadError && visibleProducts.length === 0 && products.length > 0 && (
+          <div className="bg-white rounded-lg p-8 text-center text-gray-700 mb-4">
+            <p className="font-medium text-gray-900">No products match that search or filter</p>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          {products.map((product) => (
+          {visibleProducts.map((product) => (
             <button
               key={product.id}
               type="button"
@@ -150,11 +202,13 @@ export default function ProductChoicePage() {
               className="group bg-white rounded-lg shadow-lg p-3 text-left transition-shadow duration-200 hover:shadow-[0_0_22px_rgba(200,16,46,0.45)] focus:outline-none focus:ring-4 focus:ring-[#c8102e]"
             >
               <h2 className="text-sm font-bold text-gray-900 mb-2 leading-snug min-h-[2.5rem]">{product.name}</h2>
-              <div className="aspect-square w-full overflow-hidden rounded-md bg-gray-100">
+              {/* Native photo size is 600x900 — keep that 2:3 frame instead of forcing a square. */}
+              <div className="aspect-[2/3] w-full overflow-hidden rounded-md bg-gray-100">
                 <CatalogImage
                   src={previewImage(product)}
+                  fallbacks={(product.available_colors ?? []).map((color) => color.image_url)}
                   alt={product.name}
-                  className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                  className="block w-full h-full object-cover object-top transition-transform duration-200 group-hover:scale-105"
                 />
               </div>
             </button>
@@ -201,11 +255,12 @@ export default function ProductChoicePage() {
               </button>
             </div>
 
-            <div className="aspect-square w-full overflow-hidden rounded-md mb-4 bg-gray-100">
+            <div className="aspect-[2/3] w-full overflow-hidden rounded-md mb-4 bg-gray-100">
               <CatalogImage
                 src={previewImage(activeProduct, activeColorName)}
+                fallbacks={(activeProduct.available_colors ?? []).map((color) => color.image_url)}
                 alt={`${activeProduct.name} ${activeColorName || ''}`}
-                className="w-full h-full object-cover"
+                className="block w-full h-full object-cover object-top"
               />
             </div>
 
