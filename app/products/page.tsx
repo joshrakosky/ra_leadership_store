@@ -7,9 +7,6 @@ import ExportOrdersButton from '@/components/ExportOrdersButton'
 import HelpIcon from '@/components/HelpIcon'
 import {
   fetchActiveProducts,
-  formatCatalogPrice,
-  formatPrice,
-  getPriceForSize,
   getProductColor,
   previewImage,
   productRequiresColor,
@@ -94,7 +91,6 @@ export default function ProductChoicePage() {
       id: activeProduct.id,
       name: activeProduct.name,
       sku: activeProduct.sku,
-      price: getPriceForSize(activeProduct, needsSize ? current.size : undefined),
       imageUrl: previewImage(activeProduct, current.color),
       size: needsSize ? current.size : undefined,
       color: needsColor ? current.color : undefined,
@@ -153,8 +149,7 @@ export default function ProductChoicePage() {
               onClick={() => openProduct(product)}
               className="group bg-white rounded-lg shadow-lg p-3 text-left transition-shadow duration-200 hover:shadow-[0_0_22px_rgba(200,16,46,0.45)] focus:outline-none focus:ring-4 focus:ring-[#c8102e]"
             >
-              <h2 className="text-sm font-bold text-gray-900 mb-1 leading-snug min-h-[2.5rem]">{product.name}</h2>
-              <p className="text-[#c8102e] font-semibold text-sm mb-2">{formatCatalogPrice(product)}</p>
+              <h2 className="text-sm font-bold text-gray-900 mb-2 leading-snug min-h-[2.5rem]">{product.name}</h2>
               <div className="aspect-square w-full overflow-hidden rounded-md bg-gray-100">
                 <CatalogImage
                   src={previewImage(product)}
@@ -195,9 +190,6 @@ export default function ProductChoicePage() {
             <div className="flex justify-between items-start gap-3 mb-4">
               <div>
                 <h2 className="text-xl font-bold text-gray-900 leading-snug">{activeProduct.name}</h2>
-                <p className="text-[#c8102e] font-semibold mt-1">
-                  {formatPrice(getPriceForSize(activeProduct, pick?.size))}
-                </p>
               </div>
               <button
                 type="button"
@@ -250,15 +242,11 @@ export default function ProductChoicePage() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#c8102e] focus:border-transparent bg-white"
                   >
                     <option value="">Select size</option>
-                    {activeProduct.available_sizes!.map((size) => {
-                      const sizePrice = getPriceForSize(activeProduct, size)
-                      const hasUpcharge = sizePrice !== activeProduct.price
-                      return (
-                        <option key={size} value={size}>
-                          {hasUpcharge ? `${size} (${formatPrice(sizePrice)})` : size}
-                        </option>
-                      )
-                    })}
+                    {activeProduct.available_sizes!.map((size) => (
+                      <option key={size} value={size}>
+                        {size}
+                      </option>
+                    ))}
                   </select>
                 </div>
               )}

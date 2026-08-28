@@ -6,7 +6,7 @@ import {
   productRequiresSize,
   toLeadershipProduct,
 } from '@/lib/products'
-import { HQ_SHIPPING } from '@/lib/shipping'
+import { DEFAULT_SHIPPING_COUNTRY } from '@/lib/shipping'
 import { supabase } from '@/lib/supabase'
 
 function supabaseMessage(error: unknown): string {
@@ -56,10 +56,27 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { email, firstName, lastName, productId, sku, color, size } = body
+    const {
+      email,
+      firstName,
+      lastName,
+      address,
+      address2,
+      city,
+      state,
+      zip,
+      country,
+      productId,
+      sku,
+      color,
+      size,
+    } = body
 
     if (!email || !firstName || !lastName || !productId || !sku) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    }
+    if (!address?.trim() || !city?.trim() || !state?.trim() || !zip?.trim()) {
+      return NextResponse.json({ error: 'Missing shipping address fields' }, { status: 400 })
     }
 
     const { data: productRow, error: productError } = await supabase
@@ -92,6 +109,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const normalizedEmail = String(email).toLowerCase().trim()
+
+    const { data: existingOrder, error: existingError } = await supabase
+      .from('ra_leadership_orders')
+      .select('order_number')
+      .eq('email', normalizedEmail)
+      .maybeSingle()
+
+    if (existingError) throw existingError
+    if (existingOrder) {
+      return NextResponse.json(
+        { error: 'This email has already been used to place an order. Only one order is allowed per email.' },
+        { status: 409 }
+      )
+    }
+
     const orderNumber = await generateOrderNumber()
     const chargedPrice = getPriceForSize(product, typeof size === 'string' ? size : undefined)
 
@@ -99,7 +132,7 @@ export async function POST(request: NextRequest) {
       .from('ra_leadership_orders')
       .insert({
         order_number: orderNumber,
-        email: String(email).toLowerCase().trim(),
+        email: normalizedEmail,
         first_name: String(firstName).trim(),
         last_name: String(lastName).trim(),
         product_id: product.id,
@@ -109,19 +142,30 @@ export async function POST(request: NextRequest) {
         size: productRequiresSize(product) ? String(size) : null,
         // Price always comes from the catalog row (including size upcharges), never the browser.
         price: chargedPrice,
-        shipping_name: HQ_SHIPPING.name,
-        shipping_attention: HQ_SHIPPING.attention,
-        shipping_address: HQ_SHIPPING.address,
-        shipping_address2: null,
-        shipping_city: HQ_SHIPPING.city,
-        shipping_state: HQ_SHIPPING.state,
-        shipping_zip: HQ_SHIPPING.zip,
-        shipping_country: HQ_SHIPPING.country,
+        shipping_name: `${String(firstName).trim()} ${String(lastName).trim()}`,
+        shipping_attention: null,
+        shipping_address: String(address).trim(),
+        shipping_address2: address2 ? String(address2).trim() || null : null,
+        shipping_city: String(city).trim(),
+        shipping_state: String(state).trim(),
+        shipping_zip: String(zip).trim(),
+        shipping_country: String(country || DEFAULT_SHIPPING_COUNTRY).trim() || DEFAULT_SHIPPING_COUNTRY,
       })
       .select()
       .single()
 
-    if (orderError) throw orderError
+    if (orderError) {
+      const duplicate =
+        orderError.message?.includes('duplicate key') ||
+        orderError.message?.includes('idx_ra_leadership_orders_one_per_email')
+      if (duplicate) {
+        return NextResponse.json(
+          { error: 'This email has already been used to place an order. Only one order is allowed per email.' },
+          { status: 409 }
+        )
+      }
+      throw orderError
+    }
 
     return NextResponse.json({
       success: true,

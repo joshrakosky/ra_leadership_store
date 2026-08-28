@@ -5,8 +5,6 @@ import { useEffect, useState } from 'react'
 import CatalogImage from '@/components/CatalogImage'
 import ExportOrdersButton from '@/components/ExportOrdersButton'
 import HelpIcon from '@/components/HelpIcon'
-import { formatPrice } from '@/lib/products'
-import { HQ_SHIPPING } from '@/lib/shipping'
 import type { ProductSelection, ShippingInfo } from '@/types'
 
 export default function ReviewPage() {
@@ -50,6 +48,12 @@ export default function ReviewPage() {
           email: shipping.email,
           firstName: shipping.firstName,
           lastName: shipping.lastName,
+          address: shipping.address,
+          address2: shipping.address2,
+          city: shipping.city,
+          state: shipping.state,
+          zip: shipping.zip,
+          country: shipping.country,
           productId: product.id,
           sku: product.sku,
           color: product.color,
@@ -111,7 +115,6 @@ export default function ReviewPage() {
                 <p className="font-medium text-gray-900">{product.name}</p>
                 {product.color && <p className="text-sm text-gray-600">Color: {product.color}</p>}
                 {product.size && <p className="text-sm text-gray-600">Size: {product.size}</p>}
-                <p className="text-sm font-semibold text-[#c8102e] mt-1">{formatPrice(product.price)}</p>
               </div>
             </div>
           </div>
@@ -128,15 +131,18 @@ export default function ReviewPage() {
 
           <div className="mb-6 pb-6 border-b">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Shipping Address</h2>
-            <p className="text-sm text-gray-600 mb-3">
-              These orders ship to 2 Brickyard Ln. The address cannot be changed.
-            </p>
             <div className="bg-gray-50 rounded-lg p-4">
-              <p className="font-medium text-gray-900">{HQ_SHIPPING.name}</p>
-              <p className="text-sm text-gray-600">{HQ_SHIPPING.address}</p>
-              <p className="text-sm text-gray-600">
-                {HQ_SHIPPING.city}, {HQ_SHIPPING.state} {HQ_SHIPPING.zip}
+              <p className="font-medium text-gray-900">
+                {shipping.firstName} {shipping.lastName}
               </p>
+              <p className="text-sm text-gray-600">{shipping.address}</p>
+              {shipping.address2?.trim() && (
+                <p className="text-sm text-gray-600">{shipping.address2}</p>
+              )}
+              <p className="text-sm text-gray-600">
+                {shipping.city}, {shipping.state} {shipping.zip}
+              </p>
+              <p className="text-sm text-gray-600">{shipping.country}</p>
             </div>
           </div>
 

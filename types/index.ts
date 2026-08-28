@@ -5,17 +5,22 @@ export interface ProductSelection {
   id: string
   name: string
   sku: string
-  price: number
   imageUrl: string
   size?: string
   color?: string
 }
 
-/** User-entered fields on /shipping (sessionStorage). Address is locked to HQ. */
+/** User-entered fields on /shipping (sessionStorage). */
 export interface ShippingInfo {
   firstName: string
   lastName: string
   email: string
+  address: string
+  address2: string
+  city: string
+  state: string
+  zip: string
+  country: string
 }
 
 /** Row in ra_leadership_orders — one product per order. */

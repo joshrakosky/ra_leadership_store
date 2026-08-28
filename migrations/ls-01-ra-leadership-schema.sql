@@ -56,7 +56,8 @@ CREATE TABLE IF NOT EXISTS ra_leadership_orders (
 );
 
 CREATE INDEX IF NOT EXISTS idx_ra_leadership_orders_order_number ON ra_leadership_orders(order_number);
-CREATE INDEX IF NOT EXISTS idx_ra_leadership_orders_email ON ra_leadership_orders(email);
+-- One store order per email (emails are stored lowercase).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ra_leadership_orders_one_per_email ON ra_leadership_orders(email);
 CREATE INDEX IF NOT EXISTS idx_ra_leadership_orders_created_at ON ra_leadership_orders(created_at);
 
 ALTER TABLE ra_leadership_orders ENABLE ROW LEVEL SECURITY;

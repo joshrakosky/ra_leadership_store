@@ -40,6 +40,7 @@ export default function ExportOrdersButton() {
         'Shipping Name': order.shipping_name,
         'Shipping Attention': order.shipping_attention || '',
         'Shipping Address': order.shipping_address,
+        'Address 2': order.shipping_address2 || '',
         City: order.shipping_city,
         State: order.shipping_state,
         ZIP: order.shipping_zip,
