@@ -10,7 +10,7 @@ export interface ProductSelection {
   color?: string
 }
 
-/** User-entered fields on /shipping (sessionStorage). */
+/** User-entered fields on /shipping (sessionStorage). Packages ship to first + last name. */
 export interface ShippingInfo {
   firstName: string
   lastName: string

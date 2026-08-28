@@ -142,6 +142,7 @@ export async function POST(request: NextRequest) {
         size: productRequiresSize(product) ? String(size) : null,
         // Price always comes from the catalog row (including size upcharges), never the browser.
         price: chargedPrice,
+        // Ship to the shopper's first and last name — no attention line.
         shipping_name: `${String(firstName).trim()} ${String(lastName).trim()}`,
         shipping_attention: null,
         shipping_address: String(address).trim(),

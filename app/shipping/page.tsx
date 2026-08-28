@@ -49,8 +49,20 @@ export default function ShippingPage() {
     if (savedShipping) {
       try {
         // sessionStorage is client-only; apply after mount so SSR stays empty.
+        const saved = JSON.parse(savedShipping) as Partial<ShippingInfo>
         // eslint-disable-next-line react-hooks/set-state-in-effect
-        setFormData({ ...EMPTY_FORM, ...JSON.parse(savedShipping) })
+        setFormData({
+          ...EMPTY_FORM,
+          firstName: saved.firstName ?? '',
+          lastName: saved.lastName ?? '',
+          email: saved.email ?? '',
+          address: saved.address ?? '',
+          address2: saved.address2 ?? '',
+          city: saved.city ?? '',
+          state: saved.state ?? '',
+          zip: saved.zip ?? '',
+          country: saved.country || DEFAULT_SHIPPING_COUNTRY,
+        })
       } catch {
         // Start with a blank form if stored shipping is invalid.
       }
@@ -80,7 +92,7 @@ export default function ShippingPage() {
       return
     }
     if (!formData.address.trim()) {
-      setError('Please enter a street address')
+      setError('Please enter an address')
       return
     }
     if (!formData.city.trim()) {
@@ -181,7 +193,7 @@ export default function ShippingPage() {
 
               <div>
                 <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">
-                  Street Address <span className="text-red-500">*</span>
+                  Address <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -197,7 +209,7 @@ export default function ShippingPage() {
 
               <div>
                 <label htmlFor="address2" className="block text-sm font-medium text-gray-700 mb-1">
-                  Apt / Suite / Attn
+                  Address 2
                 </label>
                 <input
                   type="text"
@@ -207,6 +219,7 @@ export default function ShippingPage() {
                   onChange={handleChange}
                   className={inputClass}
                   autoComplete="address-line2"
+                  placeholder="Apartment, suite, etc."
                 />
               </div>
 
