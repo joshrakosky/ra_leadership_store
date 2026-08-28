@@ -18,16 +18,16 @@ export default function LandingPage() {
             <RALogo className="max-w-[100px]" />
           </div>
           <h2 className="text-2xl font-semibold text-gray-700 mb-4">
-            Airport Operations
+            Leadership
           </h2>
           <p className="text-gray-600">
-            Select a vest and enter your shipping details to place an order
+            Select 1 product of your choice
           </p>
         </div>
 
         <button
           type="button"
-          onClick={() => router.push('/vests')}
+          onClick={() => router.push('/products')}
           className="w-full text-white py-3 px-4 rounded-md hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#c8102e] focus:ring-offset-2 transition-colors font-medium"
           style={{ backgroundColor: '#c8102e' }}
         >

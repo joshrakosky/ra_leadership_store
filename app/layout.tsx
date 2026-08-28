@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Republic Airways Airport Operations",
-  description: "Vest ordering for Republic Airways Airport Operations",
+  title: "Republic Airways Leadership",
+  description: "Product ordering for Republic Airways Leadership",
 };
 
 export default function RootLayout({

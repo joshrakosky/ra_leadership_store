@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import ExportOrdersButton from '@/components/ExportOrdersButton'
 import HelpIcon from '@/components/HelpIcon'
 import { HQ_SHIPPING } from '@/lib/shipping'
-import type { ShippingInfo, VestSelection } from '@/types'
+import type { ProductSelection, ShippingInfo } from '@/types'
 
 const EMPTY_FORM: ShippingInfo = {
   firstName: '',
@@ -20,19 +20,19 @@ export default function ShippingPage() {
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    const vestSelection = sessionStorage.getItem('vestSelection')
-    if (!vestSelection) {
-      router.push('/vests')
+    const productSelection = sessionStorage.getItem('productSelection')
+    if (!productSelection) {
+      router.push('/products')
       return
     }
     try {
-      const parsed = JSON.parse(vestSelection) as VestSelection
-      if (!parsed.style || !parsed.color || !parsed.size) {
-        router.push('/vests')
+      const parsed = JSON.parse(productSelection) as ProductSelection
+      if (!parsed.id || !parsed.sku) {
+        router.push('/products')
         return
       }
     } catch {
-      router.push('/vests')
+      router.push('/products')
       return
     }
 
@@ -154,7 +154,7 @@ export default function ShippingPage() {
             <div className="space-y-3 pt-4 border-t">
               <h2 className="text-xl font-semibold text-gray-900 border-b pb-2">Shipping Address</h2>
               <p className="text-sm text-gray-600">
-                These orders ship to Republic HQ at the address below.
+                These orders ship to 2 Brickyard Ln. The address cannot be changed.
               </p>
               <div className="bg-gray-50 rounded-lg p-4 text-gray-800">
                 <p className="font-medium text-gray-900">{HQ_SHIPPING.name}</p>
@@ -168,7 +168,7 @@ export default function ShippingPage() {
             <div className="mt-8 flex justify-between">
               <button
                 type="button"
-                onClick={() => router.push('/vests')}
+                onClick={() => router.push('/products')}
                 className="px-6 py-2 text-white rounded-md hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#c8102e] focus:ring-offset-2 font-medium"
                 style={{ backgroundColor: '#c8102e' }}
               >

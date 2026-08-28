@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import * as XLSX from 'xlsx'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { formatPrice } from '@/lib/products'
 import { supabase } from '@/lib/supabase'
-import { getVest } from '@/lib/vests'
 import type { Order } from '@/types'
 
 // Off switch: set NEXT_PUBLIC_SHOW_EXPORT=false when this button should be hidden.
@@ -21,7 +21,7 @@ export default function ExportOrdersButton() {
 
       const orders = await fetchAllRows<Order>((from, to) =>
         supabase
-          .from('ra_ao_orders')
+          .from('ra_leadership_orders')
           .select('*')
           .order('created_at', { ascending: false })
           .range(from, to)
@@ -32,11 +32,11 @@ export default function ExportOrdersButton() {
         'First Name': order.first_name,
         'Last Name': order.last_name,
         Email: order.email,
-        'Product Name': getVest(order.style)?.name || '',
-        Style: order.style,
-        Color: order.color,
-        Size: order.size,
+        'Product Name': order.product_name,
+        Color: order.color || '',
+        Size: order.size || '',
         SKU: order.sku,
+        Price: formatPrice(Number(order.price)),
         'Shipping Name': order.shipping_name,
         'Shipping Attention': order.shipping_attention || '',
         'Shipping Address': order.shipping_address,
@@ -50,7 +50,7 @@ export default function ExportOrdersButton() {
       const workbook = XLSX.utils.book_new()
       const sheet = XLSX.utils.json_to_sheet(rows)
       XLSX.utils.book_append_sheet(workbook, sheet, 'Orders')
-      XLSX.writeFile(workbook, `ra-ao-orders-${new Date().toISOString().split('T')[0]}.xlsx`)
+      XLSX.writeFile(workbook, `ra-leadership-orders-${new Date().toISOString().split('T')[0]}.xlsx`)
     } catch (error) {
       console.error('Export error:', error)
       alert('Failed to export orders. Please try again.')

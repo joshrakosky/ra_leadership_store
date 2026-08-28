@@ -1,12 +1,14 @@
-// Types for Republic Airways Airport Operations vest orders.
+// Types for Republic Airways Leadership store orders.
 
-/** One vest + size/color chosen on the vest page (sessionStorage). */
-export interface VestSelection {
-  style: string
-  color: string
-  size: string
+/** One product chosen on the products page (sessionStorage). */
+export interface ProductSelection {
+  id: string
+  name: string
   sku: string
+  price: number
   imageUrl: string
+  size?: string
+  color?: string
 }
 
 /** User-entered fields on /shipping (sessionStorage). Address is locked to HQ. */
@@ -16,17 +18,19 @@ export interface ShippingInfo {
   email: string
 }
 
-/** Row in ra_ao_orders — one vest per order. */
+/** Row in ra_leadership_orders — one product per order. */
 export interface Order {
   id: string
   order_number: string
   email: string
   first_name: string
   last_name: string
-  style: string
-  color: string
-  size: string
+  product_id?: string | null
+  product_name: string
   sku: string
+  color?: string | null
+  size?: string | null
+  price: number | string
   shipping_name: string
   shipping_attention?: string | null
   shipping_address: string

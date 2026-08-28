@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import {
+  getPriceForSize,
+  getProductColor,
+  productRequiresColor,
+  productRequiresSize,
+  toLeadershipProduct,
+} from '@/lib/products'
 import { HQ_SHIPPING } from '@/lib/shipping'
-import { getVestColor, isVestSize } from '@/lib/vests'
+import { supabase } from '@/lib/supabase'
 
 function supabaseMessage(error: unknown): string {
   if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
@@ -11,10 +17,10 @@ function supabaseMessage(error: unknown): string {
   return 'Failed to create order'
 }
 
-// Sequential order numbers: RAOP-001, RAOP-002, ...
+// Sequential order numbers: RALS-001, RALS-002, ...
 async function generateOrderNumber(): Promise<string> {
   const { data: orders, error } = await supabase
-    .from('ra_ao_orders')
+    .from('ra_leadership_orders')
     .select('order_number')
     .order('created_at', { ascending: false })
     .limit(1)
@@ -25,16 +31,16 @@ async function generateOrderNumber(): Promise<string> {
   }
 
   if (!orders || orders.length === 0) {
-    return 'RAOP-001'
+    return 'RALS-001'
   }
 
-  const match = orders[0].order_number.match(/RAOP-(\d+)/i)
+  const match = orders[0].order_number.match(/RALS-(\d+)/i)
   if (match) {
     const nextNumber = parseInt(match[1], 10) + 1
-    return `RAOP-${String(nextNumber).padStart(3, '0')}`
+    return `RALS-${String(nextNumber).padStart(3, '0')}`
   }
 
-  return 'RAOP-001'
+  return 'RALS-001'
 }
 
 export async function POST(request: NextRequest) {
@@ -50,55 +56,70 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { email, firstName, lastName, style, color, size, sku } = body
+    const { email, firstName, lastName, productId, sku, color, size } = body
 
-    if (!email || !firstName || !lastName || !style || !color || !size || !sku) {
+    if (!email || !firstName || !lastName || !productId || !sku) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const vestColor = getVestColor(style, color)
-    if (!vestColor || vestColor.sku !== sku) {
-      return NextResponse.json({ error: 'Invalid vest selection' }, { status: 400 })
+    const { data: productRow, error: productError } = await supabase
+      .from('ra_leadership_products')
+      .select('*')
+      .eq('id', productId)
+      .eq('active', true)
+      .maybeSingle()
+
+    if (productError) throw productError
+    if (!productRow) {
+      return NextResponse.json({ error: 'Invalid product selection' }, { status: 400 })
     }
 
-    if (!isVestSize(size)) {
-      return NextResponse.json({ error: 'Invalid size' }, { status: 400 })
+    const product = toLeadershipProduct(productRow as Record<string, unknown>)
+    const colorMatch = typeof color === 'string' ? getProductColor(product, color) : undefined
+
+    // Catalog SKU is the style number from the spreadsheet; color is its own column.
+    if (sku !== product.sku) {
+      return NextResponse.json({ error: 'Invalid product SKU' }, { status: 400 })
+    }
+
+    if (productRequiresColor(product) && !colorMatch) {
+      return NextResponse.json({ error: 'Invalid color selection' }, { status: 400 })
+    }
+
+    if (productRequiresSize(product)) {
+      if (typeof size !== 'string' || !product.available_sizes?.includes(size)) {
+        return NextResponse.json({ error: 'Invalid size' }, { status: 400 })
+      }
     }
 
     const orderNumber = await generateOrderNumber()
+    const chargedPrice = getPriceForSize(product, typeof size === 'string' ? size : undefined)
 
-    const orderRow = {
-      order_number: orderNumber,
-      email: String(email).toLowerCase().trim(),
-      first_name: String(firstName).trim(),
-      last_name: String(lastName).trim(),
-      style,
-      color,
-      size,
-      sku,
-      shipping_name: HQ_SHIPPING.name,
-      shipping_attention: HQ_SHIPPING.attention,
-      shipping_address: HQ_SHIPPING.address,
-      shipping_address2: null,
-      shipping_city: HQ_SHIPPING.city,
-      shipping_state: HQ_SHIPPING.state,
-      shipping_zip: HQ_SHIPPING.zip,
-      shipping_country: HQ_SHIPPING.country,
-    }
-
-    let { data: order, error: orderError } = await supabase
-      .from('ra_ao_orders')
-      .insert(orderRow)
+    const { data: order, error: orderError } = await supabase
+      .from('ra_leadership_orders')
+      .insert({
+        order_number: orderNumber,
+        email: String(email).toLowerCase().trim(),
+        first_name: String(firstName).trim(),
+        last_name: String(lastName).trim(),
+        product_id: product.id,
+        product_name: product.name,
+        sku,
+        color: productRequiresColor(product) ? String(color) : null,
+        size: productRequiresSize(product) ? String(size) : null,
+        // Price always comes from the catalog row (including size upcharges), never the browser.
+        price: chargedPrice,
+        shipping_name: HQ_SHIPPING.name,
+        shipping_attention: HQ_SHIPPING.attention,
+        shipping_address: HQ_SHIPPING.address,
+        shipping_address2: null,
+        shipping_city: HQ_SHIPPING.city,
+        shipping_state: HQ_SHIPPING.state,
+        shipping_zip: HQ_SHIPPING.zip,
+        shipping_country: HQ_SHIPPING.country,
+      })
       .select()
       .single()
-
-    // Table may have been created before shipping_attention existed — still save the order.
-    if (orderError?.message?.includes('shipping_attention')) {
-      const { shipping_attention: _attn, ...rowWithoutAttn } = orderRow
-      const retry = await supabase.from('ra_ao_orders').insert(rowWithoutAttn).select().single()
-      order = retry.data
-      orderError = retry.error
-    }
 
     if (orderError) throw orderError
 
@@ -110,9 +131,9 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     console.error('Order creation error:', error)
     const message = supabaseMessage(error)
-    if (message.includes('ra_ao_orders') && message.includes('does not exist')) {
+    if (message.includes('ra_leadership_orders') && message.includes('does not exist')) {
       return NextResponse.json(
-        { error: 'Orders table is missing. Run migrations/ao-01-ra-ao-orders.sql in the Supabase SQL editor.' },
+        { error: 'Orders table is missing. Run migrations/ls-01-ra-leadership-schema.sql in the Supabase SQL editor.' },
         { status: 500 }
       )
     }

@@ -2,25 +2,26 @@
 
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import CatalogImage from '@/components/CatalogImage'
 import ExportOrdersButton from '@/components/ExportOrdersButton'
 import HelpIcon from '@/components/HelpIcon'
+import { formatPrice } from '@/lib/products'
 import { HQ_SHIPPING } from '@/lib/shipping'
-import { getVest } from '@/lib/vests'
-import type { ShippingInfo, VestSelection } from '@/types'
+import type { ProductSelection, ShippingInfo } from '@/types'
 
 export default function ReviewPage() {
   const router = useRouter()
-  const [vest, setVest] = useState<VestSelection | null>(null)
+  const [product, setProduct] = useState<ProductSelection | null>(null)
   const [shipping, setShipping] = useState<ShippingInfo | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    const vestData = sessionStorage.getItem('vestSelection')
+    const productData = sessionStorage.getItem('productSelection')
     const shippingData = sessionStorage.getItem('shipping')
 
-    if (!vestData) {
-      router.push('/vests')
+    if (!productData) {
+      router.push('/products')
       return
     }
     if (!shippingData) {
@@ -29,15 +30,15 @@ export default function ReviewPage() {
     }
 
     try {
-      setVest(JSON.parse(vestData) as VestSelection)
+      setProduct(JSON.parse(productData) as ProductSelection)
       setShipping(JSON.parse(shippingData) as ShippingInfo)
     } catch {
-      router.push('/vests')
+      router.push('/products')
     }
   }, [router])
 
   const handleSubmit = async () => {
-    if (!vest || !shipping) return
+    if (!product || !shipping) return
     setError('')
     setSubmitting(true)
 
@@ -49,10 +50,10 @@ export default function ReviewPage() {
           email: shipping.email,
           firstName: shipping.firstName,
           lastName: shipping.lastName,
-          style: vest.style,
-          color: vest.color,
-          size: vest.size,
-          sku: vest.sku,
+          productId: product.id,
+          sku: product.sku,
+          color: product.color,
+          size: product.size,
         }),
       })
 
@@ -63,7 +64,7 @@ export default function ReviewPage() {
 
       const orderData = await response.json()
       sessionStorage.setItem('orderNumber', orderData.order_number)
-      sessionStorage.removeItem('vestSelection')
+      sessionStorage.removeItem('productSelection')
       sessionStorage.removeItem('shipping')
       router.push('/confirmation')
     } catch (err: unknown) {
@@ -73,7 +74,7 @@ export default function ReviewPage() {
     }
   }
 
-  if (!vest || !shipping) {
+  if (!product || !shipping) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#00263a' }}>
         <div className="text-white text-xl">Loading...</div>
@@ -89,7 +90,7 @@ export default function ReviewPage() {
         <div className="bg-white rounded-lg shadow-lg p-8">
           <div className="mb-6 text-center">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Review Your Order</h1>
-            <p className="text-gray-600">Please confirm your vest and shipping details</p>
+            <p className="text-gray-600">Please confirm your product and shipping details</p>
           </div>
 
           {error && (
@@ -99,17 +100,18 @@ export default function ReviewPage() {
           )}
 
           <div className="mb-6 pb-6 border-b">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Selected Vest</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Selected Product</h2>
             <div className="bg-gray-50 rounded-lg p-4 flex gap-4 items-center">
-              <img
-                src={vest.imageUrl}
-                alt={`${vest.style} ${vest.color}`}
+              <CatalogImage
+                src={product.imageUrl}
+                alt={product.name}
                 className="w-24 h-24 object-cover rounded-md"
               />
               <div>
-                <p className="font-medium text-gray-900">{getVest(vest.style)?.name || vest.style}</p>
-                <p className="text-sm text-gray-600">Color: {vest.color}</p>
-                <p className="text-sm text-gray-600">Size: {vest.size}</p>
+                <p className="font-medium text-gray-900">{product.name}</p>
+                {product.color && <p className="text-sm text-gray-600">Color: {product.color}</p>}
+                {product.size && <p className="text-sm text-gray-600">Size: {product.size}</p>}
+                <p className="text-sm font-semibold text-[#c8102e] mt-1">{formatPrice(product.price)}</p>
               </div>
             </div>
           </div>
@@ -127,7 +129,7 @@ export default function ReviewPage() {
           <div className="mb-6 pb-6 border-b">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Shipping Address</h2>
             <p className="text-sm text-gray-600 mb-3">
-              These orders ship to Republic HQ at the address below.
+              These orders ship to 2 Brickyard Ln. The address cannot be changed.
             </p>
             <div className="bg-gray-50 rounded-lg p-4">
               <p className="font-medium text-gray-900">{HQ_SHIPPING.name}</p>

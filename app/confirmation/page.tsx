@@ -51,7 +51,7 @@ export default function ConfirmationPage() {
         <div className="mb-6">
           <div className="text-6xl mb-4">✅</div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Order Confirmed!</h1>
-          <p className="text-gray-600">Thank you for your Airport Operations order</p>
+          <p className="text-gray-600">Thank you for your Leadership order</p>
         </div>
 
         <div className="bg-gray-50 rounded-lg p-6 mb-6">
@@ -66,7 +66,7 @@ export default function ConfirmationPage() {
         </p>
 
         <a
-          href={`mailto:?subject=Republic Airways Airport Operations Order Confirmation - ${orderNumber}&body=Thank you for your order!%0D%0A%0D%0AYour Order Number: ${orderNumber}%0D%0A%0D%0AThank you`}
+          href={`mailto:?subject=Republic Airways Leadership Order Confirmation - ${orderNumber}&body=Thank you for your order!%0D%0A%0D%0AYour Order Number: ${orderNumber}%0D%0A%0D%0AThank you`}
           onClick={() => {
             setTimeout(() => {
               sessionStorage.clear()
