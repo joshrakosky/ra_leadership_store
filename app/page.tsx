@@ -17,8 +17,9 @@ export default function LandingPage() {
           <div className="mb-3 flex justify-center">
             <RALogo className="max-w-[100px]" />
           </div>
+          {/* Event label shown on the storefront landing card. */}
           <h2 className="text-2xl font-semibold text-gray-700 mb-4">
-            Leadership
+            Manager Meeting
           </h2>
           <p className="text-gray-600">
             Select 1 product of your choice
